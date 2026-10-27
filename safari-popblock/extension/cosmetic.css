@@ -1,0 +1,27 @@
+/* Hides ad slots left empty once the network rules block their content. */
+ins.adsbygoogle,
+.adsbygoogle,
+amp-ad,
+amp-embed[type="taboola"],
+amp-embed[type="outbrain"],
+[data-ad-client],
+[data-ad-slot],
+div[id^="div-gpt-ad"],
+div[id^="google_ads_iframe"],
+iframe[id^="google_ads_iframe"],
+iframe[src*="doubleclick.net"],
+iframe[src*="googlesyndication.com"],
+iframe[src*="amazon-adsystem.com"],
+iframe[src*="exoclick.com"],
+iframe[src*="exosrv.com"],
+iframe[src*="juicyads.com"],
+iframe[src*="popads.net"],
+iframe[src*="adsterra.com"],
+iframe[src*="trafficjunky"],
+[id^="taboola-"],
+.trc_related_container,
+.OUTBRAIN,
+a[href*="doubleclick.net/"],
+a[href*="googleadservices.com/pagead/"] {
+  display: none !important;
+}

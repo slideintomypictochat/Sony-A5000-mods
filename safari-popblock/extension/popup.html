@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PopBlock</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon-96.png" alt="" width="40" height="40">
+    <div>
+      <h1>PopBlock</h1>
+      <p id="host">—</p>
+    </div>
+  </header>
+
+  <section class="stats">
+    <div><strong id="page-count">0</strong><span>blocked on this page</span></div>
+    <div><strong id="total-count">0</strong><span>blocked in total</span></div>
+  </section>
+
+  <label class="row">
+    <span>
+      <b>Protect this site</b>
+      <small>Turn off if a site you trust stops working.</small>
+    </span>
+    <input type="checkbox" id="site-toggle" role="switch">
+  </label>
+
+  <label class="row">
+    <span>
+      <b>Strict mode</b>
+      <small>Also blocks pop-ups from buttons, notification prompts, and redirects after tapping plain page content.</small>
+    </span>
+    <input type="checkbox" id="strict-toggle" role="switch">
+  </label>
+
+  <p class="hint" id="reload-hint" hidden>Reload the page to apply.</p>
+  <script src="popup.js"></script>
+</body>
+</html>
