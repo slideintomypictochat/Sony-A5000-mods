@@ -12,6 +12,10 @@ onto another website.**
 | `window.open` pop-ups and pop-unders | Blocked unless you tapped a link or button that leads there. The script gets a fake window back, so it doesn't fall back to redirecting your tab |
 | A tap anywhere on the page opens an ad tab | Pop-ups from taps on text, images or the background are always blocked. In strict mode, cross-site pop-ups from buttons are blocked too (sign-in and payment windows like Google, Apple or PayPal still work) |
 | Invisible full-screen layer that catches your tap | The layer is removed and that tap is stopped. Your next tap reaches the real page |
+| Invisible ad link laid over a video player, or slipped under your finger mid-tap | The tap is stopped and the link removed |
+| Pop-up that opens blank and is pointed at the ad afterwards | Blocked, so tapping a video thumbnail can't open an ad tab |
+| Script borrows an untouched `window.open` from a hidden frame | Frames get the same guards as the page |
+| Page sends the current tab to an ad after you tap (tab-under) | Stopped on Safari 26 and later |
 | Script clicks a hidden ad link or submits a hidden form | Blocked unless you actually tapped a link to that site |
 | Link swapping (the `href` changes when your finger touches the link) | The original link is put back before Safari follows it |
 | New tab you didn't ask for | Closed, and you're returned to your page |

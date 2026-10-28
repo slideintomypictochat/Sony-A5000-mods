@@ -302,6 +302,134 @@ const tests = {
     await context.close();
   },
 
+  async 'video thumbnail link: blank pop-up later pointed at an ad is blocked'(b) {
+    const { page, popups, context } = await setup(b);
+    await page.evaluate((ad) => {
+      document.body.insertAdjacentHTML('beforeend', '<a id="thumb" href="/v/123" style="display:block;width:300px;height:170px;background:#333"></a>');
+      document.addEventListener('click', (e) => {
+        e.preventDefault();
+        const w = window.open('', '_blank');
+        if (w) w.location = ad;
+      }, true);
+    }, AD);
+    await page.click('#thumb');
+    await settle(page);
+    assert.strictEqual(popups.length, 0);
+    await context.close();
+  },
+
+  async 'ad link slipped under the finger during the tap is blocked'(b) {
+    const { page, popups, context } = await setup(b);
+    await page.evaluate((ad) => {
+      document.body.insertAdjacentHTML('beforeend', '<video id="vid" style="display:block;width:300px;height:170px;background:#000"></video>');
+      const v = document.getElementById('vid');
+      v.addEventListener('touchstart', () => {
+        const r = v.getBoundingClientRect();
+        const a = document.createElement('a');
+        a.id = 'slip';
+        a.href = ad;
+        a.target = '_blank';
+        a.textContent = ' ';
+        a.style.cssText = `position:absolute;left:${r.left + scrollX}px;top:${r.top + scrollY}px;width:${r.width}px;height:${r.height}px;z-index:9`;
+        document.body.appendChild(a);
+      });
+    }, AD);
+    // A touch tap, as on iPhone: the click goes to whatever is under the
+    // finger when it lifts.
+    await page.tap('#vid');
+    await settle(page);
+    assert.ok(await page.$('#slip'), 'test setup: the ad link was inserted');
+    assert.strictEqual(popups.length, 0);
+    await context.close();
+  },
+
+  async 'small invisible ad link over the video player is blocked'(b) {
+    const { page, popups, context } = await setup(b);
+    await page.evaluate((ad) => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        `<div style="position:relative;width:300px;height:170px"><video style="width:100%;height:100%;background:#000"></video>` +
+          `<a id="ghost" href="${ad}" target="_blank" style="position:absolute;inset:0;z-index:5"></a></div>`
+      );
+    }, AD);
+    await page.click('#ghost');
+    await settle(page);
+    assert.strictEqual(popups.length, 0);
+    await context.close();
+  },
+
+  async 'untouched window.open borrowed from a hidden frame is still guarded'(b) {
+    const { page, popups, context } = await setup(b);
+    await page.evaluate((ad) => {
+      const f = document.createElement('iframe');
+      f.style.display = 'none';
+      document.body.appendChild(f);
+      f.contentWindow.open(ad);
+      window.frames[0].open(ad);
+      f.contentWindow.HTMLElement.prototype.click.call(Object.assign(document.createElement('a'), { href: ad, target: '_blank' }));
+    }, AD);
+    await settle(page);
+    assert.strictEqual(popups.length, 0);
+    await context.close();
+  },
+
+  async 'HTMLElement.prototype.click on an ad link is blocked'(b) {
+    const { page, popups, context } = await setup(b);
+    await page.evaluate((ad) => {
+      const a = document.createElement('a');
+      a.href = ad;
+      a.target = '_blank';
+      HTMLElement.prototype.click.call(a);
+    }, AD);
+    await settle(page);
+    assert.strictEqual(popups.length, 0);
+    await context.close();
+  },
+
+  async 'tab redirected to an ad after tapping play is stopped'(b) {
+    const { page, context } = await setup(b);
+    await page.evaluate((ad) => {
+      document.getElementById('btn').addEventListener('click', () => (location.href = ad));
+    }, AD);
+    await page.click('#btn');
+    await page.waitForTimeout(500);
+    assert.strictEqual(page.url(), HOME);
+    await context.close();
+  },
+
+  async 'redirect after tapping page text is stopped'(b) {
+    const { page, context } = await setup(b);
+    await page.evaluate(() => document.addEventListener('click', () => location.assign('https://unknown-ads.test/x')));
+    await page.click('#text');
+    await page.waitForTimeout(500);
+    assert.strictEqual(page.url(), HOME);
+    await context.close();
+  },
+
+  async 'automatic redirect with no tap still works (e.g. moved site)'(b) {
+    const { page, context } = await setup(b);
+    await Promise.all([page.waitForURL('https://new-domain.test/'), page.evaluate(() => (location.href = 'https://new-domain.test/'))]);
+    await context.close();
+  },
+
+  async 'sign-in redirect from a button still works'(b) {
+    const { page, context } = await setup(b);
+    await page.evaluate(() =>
+      document.getElementById('login').addEventListener('click', () => (location.href = 'https://accounts.google.com/signin'))
+    );
+    await Promise.all([page.waitForURL('https://accounts.google.com/signin'), page.click('#login')]);
+    await context.close();
+  },
+
+  async 'a real visible link to another site still works'(b) {
+    const { page, context } = await setup(b);
+    await page.evaluate(() =>
+      document.body.insertAdjacentHTML('beforeend', '<a id="out" href="https://wikipedia.test/wiki" style="display:block;height:40px">Wikipedia</a>')
+    );
+    await Promise.all([page.waitForURL('https://wikipedia.test/wiki'), page.click('#out')]);
+    await context.close();
+  },
+
   async 'paused site (enabled: false) is not touched'(b) {
     const { page, popups, context } = await setup(b, { enabled: false, strict: true });
     await page.evaluate((ad) => window.open(ad), AD);

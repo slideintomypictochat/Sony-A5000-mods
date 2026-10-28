@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PopBlock
 // @namespace    popblock
-// @version      1.1.0
+// @version      1.2.0
 // @description  Stops pop-ups, pop-unders, tap-jacking redirects, link swapping and notification spam.
 // @match        *://*/*
 // @run-at       document-start
@@ -124,43 +124,59 @@
 
   // ---- Gesture tracking ----------------------------------------------------
   // Registered on window in the capture phase before any page script, so these
-  // see every real tap first.
-  let gesture = { t: 0, target: null, link: null, href: null, interactive: false };
+  // see every real tap first. `down*` is where the finger first touched.
+  let gesture = { t: 0, target: null, link: null, href: null, interactive: false, downTarget: null, downT: 0 };
 
   const INTERACTIVE = 'button,input,select,textarea,label,summary,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[contenteditable]';
 
   const closestLink = (el) => (el && el.closest ? el.closest('a[href],area[href]') : null);
 
+  const recordGesture = (el, link) => {
+    gesture = {
+      t: now(),
+      target: el,
+      link,
+      href: link ? link.href : null,
+      interactive: !!(el && el.closest && el.closest(INTERACTIVE)),
+      downTarget: el,
+      downT: now(),
+    };
+  };
+
   const onPointer = (e) => {
     if (!e.isTrusted) return;
     const el = e.target instanceof Element ? e.target : null;
-    const link = closestLink(el);
-    if (e.type !== 'click' || !gesture.link || gesture.link !== link) {
-      gesture = {
-        t: now(),
-        target: el,
-        link,
-        href: link ? link.href : null,
-        interactive: !!(el && el.closest && el.closest(INTERACTIVE)),
-      };
-    } else {
+    if (e.type === 'mousedown') {
+      // Fired after touchstart, by which time a script may have put something
+      // else under the finger. Only refresh the time.
       gesture.t = now();
+      return;
     }
-    // Only a click follows a link, so that is where a tap layer is stopped.
-    if (e.type === 'click' && state.enabled && el && neutralizeTapLayer(el, link)) {
+    const link = closestLink(el);
+    if (e.type !== 'click') return recordGesture(el, link);
+
+    gesture.t = now();
+    // Only a click follows a link, so that is where a hijack is stopped.
+    if (state.enabled && el && blockTapHijack(el, link)) {
       e.preventDefault();
       e.stopImmediatePropagation();
+      return;
+    }
+    if (link !== gesture.link) {
+      const { downTarget, downT } = gesture;
+      recordGesture(el, link);
+      Object.assign(gesture, { downTarget, downT });
     }
   };
 
-  const hasGesture = () => now() - gesture.t < GESTURE_MS;
+  const hasGesture = (ms = GESTURE_MS) => now() - gesture.t < ms;
 
   ['pointerdown', 'touchstart', 'mousedown', 'keydown'].forEach((type) =>
     window.addEventListener(type, onPointer, { capture: true, passive: true })
   );
   window.addEventListener('click', onPointer, { capture: true });
 
-  // ---- Invisible tap layers ------------------------------------------------
+  // ---- Tap hijacks ---------------------------------------------------------
   const isTransparent = (cs) =>
     parseFloat(cs.opacity) < 0.05 ||
     ((cs.backgroundColor === 'transparent' || cs.backgroundColor === 'rgba(0, 0, 0, 0)') &&
@@ -196,18 +212,50 @@
     return null;
   };
 
+  // An empty, see-through link that opens a new tab, laid over something
+  // else (usually a video player) so a tap on that thing opens an ad.
+  const isGhostLink = (link) => {
+    if (hasVisibleContent(link)) return false;
+    const target = (link.getAttribute('target') || '').toLowerCase();
+    if (target !== '_blank' && target !== '_new') return false;
+    const r = link.getBoundingClientRect();
+    return r.width * r.height >= 2500 && isTransparent(getComputedStyle(link));
+  };
+
+  // Inside a third-party frame (an ad slot), a link without text that leads
+  // to a third site is an ad banner.
+  const frameSite = siteOf(location.hostname);
+  const isAdFrameLink = (link) =>
+    window.top !== window &&
+    frameSite !== homeSite &&
+    targetSite(link.href) !== frameSite &&
+    !(link.textContent || '').trim();
+
   const hide = (el) => {
     el.style.setProperty('display', 'none', 'important');
     el.style.setProperty('pointer-events', 'none', 'important');
   };
 
-  // Called on every real tap: only removes layers that would navigate away.
-  const neutralizeTapLayer = (el, link) => {
+  // Called on every real click. Returns true when the click was a hijack.
+  const blockTapHijack = (el, link) => {
     if (!link || isSameSite(link.href)) return false;
+    let kind = null;
+    let culprit = link;
     const layer = findTapLayer(el, true);
-    if (!layer) return false;
-    hide(layer);
-    report('tap-layer', link.href);
+    if (layer) {
+      kind = 'tap-layer';
+      culprit = layer;
+    } else if (now() - gesture.downT < GESTURE_MS && gesture.downTarget && !link.contains(gesture.downTarget)) {
+      // The finger went down on something else; this link was slipped in.
+      kind = 'link-under-finger';
+    } else if (isGhostLink(link)) {
+      kind = 'ghost-link';
+    } else if (state.strict && isAdFrameLink(link)) {
+      kind = 'ad-frame-link';
+    }
+    if (!kind) return false;
+    hide(culprit);
+    report(kind, link.href);
     return true;
   };
 
@@ -241,40 +289,20 @@
     });
   };
 
-  // ---- window.open ---------------------------------------------------------
-  const realOpen = window.open;
-
+  // ---- Policies ------------------------------------------------------------
   const shouldAllowOpen = (url) => {
     if (!state.enabled) return true;
     if (!hasGesture()) return false; // no tap at all: always spam
-    if (gesture.href) {
-      const want = targetSite(gesture.href);
-      const got = targetSite(url);
-      if (got === want || got === '' || got === 'about:blank') return true;
-    }
-    const site = targetSite(url);
+    const site = url == null || url === '' ? 'about:blank' : targetSite(url);
     if (site === homeSite) return true;
-    if (!gesture.interactive) return false; // tap on plain text, image, background
+    // A blank window is how pop-unders start: they point it at the ad later.
+    if (site === 'about:blank') return !state.strict && gesture.interactive;
+    if (gesture.href && site === targetSite(gesture.href)) return true;
+    if (!gesture.interactive) return false; // tap on plain text, image, video, background
     if (!state.strict) return true;
-    return TRUSTED_POPUP_SITES.has(site) && site !== 'about:blank';
+    return TRUSTED_POPUP_SITES.has(site);
   };
 
-  const guardedOpen = function open(url, name, features) {
-    if (shouldAllowOpen(url)) {
-      report('allow-open', url == null ? '' : new URL(String(url), location.href).href);
-      return realOpen.apply(this === undefined ? window : this, arguments);
-    }
-    report('popup', url == null ? '' : String(url));
-    removeLayerAfterBlock();
-    return fakeWindow();
-  };
-  try {
-    Object.defineProperty(window, 'open', { value: guardedOpen, writable: false, configurable: false });
-  } catch (_) {
-    window.open = guardedOpen;
-  }
-
-  // ---- Synthetic link clicks and form submits ------------------------------
   // a.click() / dispatchEvent(new MouseEvent('click')) on a link, or
   // form.submit(), triggered by script without a real tap on that link.
   const allowScriptedNav = (url) => {
@@ -283,37 +311,139 @@
     return !!gesture.href && targetSite(gesture.href) === targetSite(url);
   };
 
-  const anchorProto = HTMLAnchorElement.prototype;
-  const realAnchorClick = anchorProto.click;
-  anchorProto.click = function click() {
-    if (!allowScriptedNav(this.href)) {
-      report('scripted-link', this.href);
-      return;
+  // ---- Guarded APIs --------------------------------------------------------
+  // Ad scripts grab untouched copies of these from a fresh <iframe>, so every
+  // same-origin frame window gets the same guards as the page.
+  const guardRealm = (win) => {
+    try {
+      if (!win || win.__popblockRealm) return;
+      Object.defineProperty(win, '__popblockRealm', { value: true });
+    } catch (_) {
+      return; // cross-origin frame: it runs its own copy of this guard
     }
-    return realAnchorClick.apply(this, arguments);
-  };
 
-  const realDispatch = EventTarget.prototype.dispatchEvent;
-  EventTarget.prototype.dispatchEvent = function dispatchEvent(event) {
-    if (event && event.type === 'click' && this instanceof Element) {
+    const realOpen = win.open;
+    const guardedOpen = function open(url) {
+      if (shouldAllowOpen(url)) {
+        let abs = '';
+        try {
+          abs = url == null ? '' : new URL(String(url), location.href).href;
+        } catch (_) {}
+        report('allow-open', abs);
+        return realOpen.apply(win, arguments);
+      }
+      report('popup', url == null ? '' : String(url));
+      removeLayerAfterBlock();
+      return fakeWindow();
+    };
+    try {
+      Object.defineProperty(win, 'open', { value: guardedOpen, writable: false, configurable: false });
+    } catch (_) {
+      win.open = guardedOpen;
+    }
+
+    // HTMLElement, not HTMLAnchorElement: HTMLElement.prototype.click.call(a)
+    // would otherwise skip the check.
+    const elProto = win.HTMLElement.prototype;
+    const realClick = elProto.click;
+    elProto.click = function click() {
       const link = closestLink(this);
       if (link && !allowScriptedNav(link.href)) {
         report('scripted-link', link.href);
-        return false;
+        return;
       }
-    }
-    return realDispatch.apply(this, arguments);
-  };
+      return realClick.apply(this, arguments);
+    };
 
-  const formProto = HTMLFormElement.prototype;
-  const realSubmit = formProto.submit;
-  formProto.submit = function submit() {
-    if (!allowScriptedNav(this.action)) {
-      report('scripted-form', this.action);
-      return;
-    }
-    return realSubmit.apply(this, arguments);
+    const targetProto = win.EventTarget.prototype;
+    const realDispatch = targetProto.dispatchEvent;
+    targetProto.dispatchEvent = function dispatchEvent(event) {
+      if (event && event.type === 'click' && this && this.nodeType === 1) {
+        const link = closestLink(this);
+        if (link && !allowScriptedNav(link.href)) {
+          report('scripted-link', link.href);
+          return false;
+        }
+      }
+      return realDispatch.apply(this, arguments);
+    };
+
+    const formProto = win.HTMLFormElement.prototype;
+    const realSubmit = formProto.submit;
+    formProto.submit = function submit() {
+      if (!allowScriptedNav(this.action)) {
+        report('scripted-form', this.action);
+        return;
+      }
+      return realSubmit.apply(this, arguments);
+    };
+
+    const frameProto = win.HTMLIFrameElement.prototype;
+    ['contentWindow', 'contentDocument'].forEach((prop) => {
+      const desc = Object.getOwnPropertyDescriptor(frameProto, prop);
+      if (!desc || !desc.get) return;
+      Object.defineProperty(frameProto, prop, {
+        configurable: true,
+        enumerable: desc.enumerable,
+        get() {
+          const value = desc.get.call(this);
+          guardRealm(prop === 'contentWindow' ? value : value && value.defaultView);
+          return value;
+        },
+      });
+    });
+
+    // Also reach frames used through window.frames[i] right after insertion.
+    const guardInsertedFrames = (node) => {
+      if (!node || node.nodeType !== 1) return;
+      if (node.nodeName === 'IFRAME') guardRealm(node.contentWindow);
+      else if (node.firstElementChild) Array.prototype.forEach.call(node.getElementsByTagName('iframe'), (f) => guardRealm(f.contentWindow));
+    };
+    const nodeProto = win.Node.prototype;
+    ['appendChild', 'insertBefore', 'replaceChild'].forEach((name) => {
+      const real = nodeProto[name];
+      nodeProto[name] = function (node) {
+        const result = real.apply(this, arguments);
+        guardInsertedFrames(node);
+        return result;
+      };
+    });
+    const elementProto = win.Element.prototype;
+    ['append', 'prepend', 'after', 'before', 'replaceWith'].forEach((name) => {
+      const real = elementProto[name];
+      if (typeof real !== 'function') return;
+      elementProto[name] = function () {
+        const result = real.apply(this, arguments);
+        Array.prototype.forEach.call(arguments, guardInsertedFrames);
+        return result;
+      };
+    });
   };
+  guardRealm(window);
+
+  // ---- Redirects of the current tab ----------------------------------------
+  // location.href = ad after a tap (often paired with opening the real page in
+  // a new tab, a "tab-under"). Needs the Navigation API (Safari 26+).
+  const REDIRECT_GESTURE_MS = 2000;
+  if (window.top === window && window.navigation && window.navigation.addEventListener) {
+    window.navigation.addEventListener('navigate', (e) => {
+      if (!state.enabled || !e.cancelable || e.userInitiated || e.formData) return;
+      if (e.navigationType !== 'push' && e.navigationType !== 'replace') return;
+      const url = e.destination.url;
+      if (isSameSite(url)) return;
+      let block = isAdUrl(url);
+      if (!block && hasGesture(REDIRECT_GESTURE_MS)) {
+        const site = targetSite(url);
+        if (gesture.href) block = site !== targetSite(gesture.href);
+        else if (!gesture.interactive) block = true;
+        else block = state.strict && !TRUSTED_POPUP_SITES.has(site);
+      }
+      if (block) {
+        e.preventDefault();
+        report('redirect', url);
+      }
+    });
+  }
 
   // ---- Link swapping -------------------------------------------------------
   // Some scripts rewrite a link's href on finger-down so the tap lands on an ad.
