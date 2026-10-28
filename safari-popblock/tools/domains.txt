@@ -94,3 +94,13 @@ spotx.tv
 # --- Trackers commonly bundled with ad scripts ---
 scorecardresearch.com
 quantserve.com
+
+# --- Adult and file-host banner networks ---
+magsrv.com
+pemsrv.com
+orbsrv.com
+crakrevenue.com
+adspyglass.com
+jads.co
+a-ads.com
+adsco.re

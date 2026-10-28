@@ -249,6 +249,59 @@ const tests = {
     await context.close();
   },
 
+  async 'banner-sized image linking off-site is hidden'(b) {
+    const { page, context } = await setup(b);
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a id="banner" href="https://game.sponsor.test/play?aff=1" target="_blank"><img src="/b.png" width="290" height="242"></a>' +
+          '<a id="photo" href="https://photos.test/album"><img src="/p.png" width="390" height="390"></a>' +
+          '<a id="textlink" href="https://partner.test/"><img src="/i.png" width="300" height="250"> Read on Partner</a>' +
+          '<a id="local" href="/gallery"><img src="/g.png" width="300" height="250"></a>'
+      );
+    });
+    await page.waitForTimeout(600);
+    const shown = await page.evaluate(() =>
+      ['banner', 'photo', 'textlink', 'local'].map((id) => getComputedStyle(document.getElementById(id)).display !== 'none')
+    );
+    assert.deepStrictEqual(shown, [false, true, true, true]);
+    await context.close();
+  },
+
+  async 'ad network frames, images and links are hidden'(b) {
+    const { page, context } = await setup(b);
+    // Parsed HTML, like ads that are part of the page itself.
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<a id="l" href="https://a.magsrv.com/click?x=1">Hot games</a>' +
+          '<iframe id="static" src="https://syndication.exoclick.com/ad" width="300" height="250"></iframe>' +
+          '<iframe id="video" src="https://video.test/embed" width="300" height="250" allowfullscreen></iframe>'
+      );
+    });
+    await page.waitForTimeout(600);
+    const hidden = await page.evaluate(() =>
+      ['l', 'static', 'video'].map((id) => getComputedStyle(document.getElementById(id)).display === 'none')
+    );
+    assert.deepStrictEqual(hidden, [true, true, false]);
+    await context.close();
+  },
+
+  async 'ad scripts and frames added by script never load'(b) {
+    const { page, context } = await setup(b);
+    const srcs = await page.evaluate(() => {
+      const s = document.createElement('script');
+      s.src = 'https://a.magsrv.com/ad-provider.js';
+      const f = document.createElement('iframe');
+      f.setAttribute('src', 'https://ads.exoclick.com/frame');
+      const ok = document.createElement('script');
+      ok.src = 'https://news.example/app.js';
+      return [s.getAttribute('src'), f.getAttribute('src'), ok.getAttribute('src')];
+    });
+    assert.deepStrictEqual(srcs, [null, null, 'https://news.example/app.js']);
+    await context.close();
+  },
+
   async 'paused site (enabled: false) is not touched'(b) {
     const { page, popups, context } = await setup(b, { enabled: false, strict: true });
     await page.evaluate((ad) => window.open(ad), AD);

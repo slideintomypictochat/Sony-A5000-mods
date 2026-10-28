@@ -19,6 +19,7 @@ onto another website.**
 | "Allow notifications?" spam | Denied automatically (strict mode) |
 | Endless "You won an iPhone!" alert loops | Cut off after two alerts |
 | Back button trap (history stuffing) | Extra history entries are ignored |
+| Banner ads | Links, frames and images from ad networks are hidden, and so are banner-sized images that link to other sites |
 | Empty ad boxes | Hidden with CSS |
 
 It also works inside ad iframes, so an ad can't count its own domain as "same site".
@@ -63,8 +64,9 @@ can get through.
 ## Option B: no Mac (userscript)
 
 This gets you the page guard: pop-ups, tap layers, link swapping, scripted
-clicks, notification spam, alert loops and history traps. It doesn't get you
-network blocking or the new-tab and redirect watchdog. **Keep AdGuard on
+clicks, notification spam, alert loops and history traps. It also hides banner
+ads and stops ad scripts that are added after the page loads. It doesn't get
+you full network blocking or the new-tab and redirect watchdog. **Keep AdGuard on
 alongside it** for network blocking. The two work well together.
 
 1. Install the free **Userscripts** app (by Justin Wasack) from the App Store.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PopBlock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Blocks ads, pop-ups, pop-unders and taps that hijack you to another website.",
   "icons": {
     "48": "icons/icon-48.png",

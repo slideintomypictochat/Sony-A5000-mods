@@ -2022,5 +2022,189 @@
     "other"
    ]
   }
+ },
+ {
+  "id": 89,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||magsrv.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 90,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||pemsrv.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 91,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||orbsrv.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 92,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||crakrevenue.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 93,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||adspyglass.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 94,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||jads.co^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 95,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||a-ads.com^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
+ },
+ {
+  "id": 96,
+  "priority": 1,
+  "action": {
+   "type": "block"
+  },
+  "condition": {
+   "urlFilter": "||adsco.re^",
+   "resourceTypes": [
+    "main_frame",
+    "sub_frame",
+    "script",
+    "image",
+    "stylesheet",
+    "xmlhttprequest",
+    "media",
+    "font",
+    "ping",
+    "websocket",
+    "other"
+   ]
+  }
  }
 ]
